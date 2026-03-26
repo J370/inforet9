@@ -1,5 +1,5 @@
 - [ ] Topic Choosing 8 Mar
-- [ ] Data Crawling 14 Mar
+- [ ] Data Crawling 12 Mar
 - [ ] Data Indexing 21 Mar
 - [ ] Data Classification 04 Apr
 - [ ] Submission 12 Apr
@@ -32,8 +32,29 @@
 
 # Data Crawling
 
+Scope: Singapore, Hawker
+
+Question 1 - Datasets: (Chuan Jue, Nigel, Jet)
+
+- data.gov.sg: List of hawker centres
+- Google Maps
+- Yelp Reviews: restaurant reviews with ratings and text.
+- Food Panda
+- GrabFood
+- Deliveroo
+
 - Standardise corpus formatting
 
 # Data Indexing
 
+Question 2 - UI: (Jet)
+
 - UI creation: can do first
+
+Question 3 - Indexing: (Chuan Jue, Nigel, Jet)
+
+# Data Classification
+
+Question 4 - Annotators: (Huiling, Huy Truong)
+
+Question 5 - Innovations: (Everyone)
