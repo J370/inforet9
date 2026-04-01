@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}HawkerOpinions | Search{% endblock %}
+
+{% block content %}
+<section class="search-page">
+    <div class="container">
+        <a class="back-link" href="{% url 'home' %}">Back to Home</a>
+
+        <form class="search-wrap search-compact" action="{% url 'search_results' %}" method="get">
+            <input type="text" name="q" value="{{ query }}" placeholder="Search for hawker dishes, stalls, or food centres...">
+            <button type="submit" aria-label="Search">Search</button>
+        </form>
+
+        <h1 class="result-title">Search Results for "{{ query|default:'all dishes' }}"</h1>
+        <p class="result-count">{{ result_count }} opinions found</p>
+
+        <div class="results-layout">
+            <aside class="filters">
+                <h3>Filters</h3>
+                <form method="get" action="{% url 'search_results' %}" class="filter-form">
+                    <input type="hidden" name="q" value="{{ query }}">
+
+                    <div class="filter-group">
+                        <h4>Location</h4>
+                        {% for location in locations %}
+                            <label><input type="checkbox" name="location" value="{{ location }}" {% if location in selected.locations %}checked{% endif %}> {{ location }}</label>
+                        {% endfor %}
+                    </div>
+
+                    <div class="filter-group">
+                        <h4>Rating</h4>
+                        <label><input type="radio" name="rating" value="5" {% if selected.min_rating == 5 %}checked{% endif %}> 5 stars</label>
+                        <label><input type="radio" name="rating" value="4" {% if selected.min_rating == 4 %}checked{% endif %}> 4 stars</label>
+                        <label><input type="radio" name="rating" value="3" {% if selected.min_rating == 3 %}checked{% endif %}> 3 stars</label>
+                        <label><input type="radio" name="rating" value="2" {% if selected.min_rating == 2 %}checked{% endif %}> 2 stars</label>
+                        <label><input type="radio" name="rating" value="1" {% if selected.min_rating == 1 %}checked{% endif %}> 1 star</label>
+                        <label><input type="radio" name="rating" value="0" {% if selected.min_rating == 0 %}checked{% endif %}> All ratings</label>
+                    </div>
+
+                    <div class="filter-group">
+                        <h4>Sentiment</h4>
+                        {% for sentiment in sentiments %}
+                            <label><input type="checkbox" name="sentiment" value="{{ sentiment }}" {% if sentiment in selected.sentiments %}checked{% endif %}> {{ sentiment }}</label>
+                        {% endfor %}
+                    </div>
+
+                    <div class="filter-group">
+                        <h4>Price Range</h4>
+                        {% for price in price_ranges %}
+                            <label><input type="checkbox" name="price" value="{{ price }}" {% if price in selected.price_ranges %}checked{% endif %}> {{ price }}</label>
+                        {% endfor %}
+                    </div>
+
+                    <button class="apply-btn" type="submit">Apply Filters</button>
+                </form>
+            </aside>
+
+            <section class="result-cards">
+                {% if results %}
+                    {% for item in results %}
+                        <article class="result-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3>{{ item.dish }}</h3>
+                                    {% if item.stall != item.dish %}
+                                        <p class="stall">{{ item.stall }}</p>
+                                    {% endif %}
+                                    <p class="meta">{{ item.hawker_centre }} · {{ item.location }} · {{ item.price_range }}</p>
+                                </div>
+                                <div class="rating-side">
+                                    <p class="rating">{{ item.rating }}/5</p>
+                                    <p class="sentiment {{ item.sentiment|lower }}">{{ item.sentiment }}</p>
+                                </div>
+                            </div>
+                            <p class="review">{{ item.review }}</p>
+                            <div class="card-footer">
+                                <p>{{ item.author }} · {{ item.created_at }}</p>
+                                <p>{{ item.likes }} likes · {{ item.comments }} comments</p>
+                            </div>
+                        </article>
+                    {% endfor %}
+                    <div class="pagination">
+                        {% if has_prev %}
+                            <a class="page-btn" href="{% url 'search_results' %}?{{ query_string }}{% if query_string %}&{% endif %}page={{ prev_page }}">Previous</a>
+                        {% else %}
+                            <span class="page-btn disabled">Previous</span>
+                        {% endif %}
+
+                        <span class="page-info">Page {{ current_page }} / {{ total_pages }}</span>
+
+                        {% if has_next %}
+                            <a class="page-btn" href="{% url 'search_results' %}?{{ query_string }}{% if query_string %}&{% endif %}page={{ next_page }}">Next</a>
+                        {% else %}
+                            <span class="page-btn disabled">Next</span>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <h3>No matching opinions yet</h3>
+                        <p>Try a broader keyword or clear some filters.</p>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </div>
+</section>
+{% endblock %}

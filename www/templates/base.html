@@ -1,0 +1,39 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HawkerOpinions{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/site.css' %}">
+</head>
+<body>
+    <header class="topbar">
+        <div class="container topbar-inner">
+            <a class="brand" href="{% url 'home' %}">
+                <span class="brand-mark">HO</span>
+                <span class="brand-text">HawkerOpinions</span>
+            </a>
+            <nav class="nav-links">
+                <a href="{% url 'home' %}#about">About</a>
+                <a href="{% url 'home' %}#trending">Trending</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>© 2026 HawkerOpinions. Celebrating Singapore's hawker culture, one opinion at a time.</p>
+        </div>
+    </footer>
+
+    <script src="{% static 'js/site.js' %}"></script>
+</body>
+</html>
