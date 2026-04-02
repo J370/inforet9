@@ -286,6 +286,33 @@ body {
     font-size: 1.2rem;
 }
 
+.spellcheck-box {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 18px;
+    padding: 12px 16px;
+    border: 1px solid #f2c6a8;
+    border-radius: 12px;
+    background: #fff7f1;
+    color: #6e4b33;
+    font-weight: 700;
+}
+
+.spellcheck-box p {
+    margin: 0;
+}
+
+.spellcheck-link {
+    color: #d84f05;
+    text-decoration: none;
+    background: #fff;
+    border: 1px solid #f0d0bf;
+    border-radius: 999px;
+    padding: 6px 12px;
+}
+
 .results-layout {
     display: grid;
     grid-template-columns: 260px 1fr;

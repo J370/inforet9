@@ -131,6 +131,13 @@ def search_opinions(
         'fl': 'dish,stall,stall_name,hawker_centre,location,rating,star_rating,sentiment,price_range,review,review_text,author,created_at,likes,comments',
         'start': max(0, (page - 1) * page_size),
         'rows': page_size,
+        'spellcheck': 'true',
+        'spellcheck.q': query or '',
+        'spellcheck.build': 'true',
+        'spellcheck.collate': 'true',
+        'spellcheck.collateExtendedResults': 'true',
+        'spellcheck.maxCollations': '1',
+        'spellcheck.count': '3',
         'wt': 'json',
     }
 
@@ -146,9 +153,35 @@ def search_opinions(
             payload = json.loads(response.read().decode('utf-8'))
         response_data = payload.get('response', {})
         docs = response_data.get('docs', [])
+        spellcheck_data = payload.get('spellcheck', {})
+        suggestions: list[str] = []
+        for suggestion in spellcheck_data.get('suggestions', []):
+            if isinstance(suggestion, dict):
+                options = suggestion.get('suggestion', [])
+                if options:
+                    first_option = options[0]
+                    if isinstance(first_option, dict):
+                        option_word = first_option.get('word')
+                    else:
+                        option_word = first_option
+                    cleaned = _clean_text(option_word)
+                    if cleaned and cleaned.lower() != query.lower():
+                        suggestions.append(cleaned)
+        if not suggestions:
+            collations = spellcheck_data.get('collations', [])
+            for collation in collations:
+                if isinstance(collation, dict):
+                    collation_query = _clean_text(collation.get('collationQuery'))
+                    if collation_query and collation_query.lower() != query.lower():
+                        suggestions.append(collation_query)
+                elif isinstance(collation, str):
+                    cleaned = _clean_text(collation)
+                    if cleaned and cleaned.lower() != query.lower():
+                        suggestions.append(cleaned)
         return {
             'docs': [_normalize_doc(doc) for doc in docs],
             'total': int(response_data.get('numFound', 0)),
+            'spellcheck_suggestions': suggestions,
         }
     except Exception:
         return None

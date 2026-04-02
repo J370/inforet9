@@ -182,9 +182,29 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		start = (page - 1) * page_size
 		end = start + page_size
 		results = local_results[start:end]
+		spellcheck_suggestions = []
+		corrected_query = ''
 	else:
 		results = search_payload['docs']
 		total_count = search_payload['total']
+		spellcheck_suggestions = search_payload.get('spellcheck_suggestions', [])
+		corrected_query = ''
+
+		if not results and selected['q'] and spellcheck_suggestions:
+			corrected_query = spellcheck_suggestions[0]
+			corrected_payload = search_opinions(
+				query=corrected_query,
+				locations=selected['locations'],
+				sentiments=selected['sentiments'],
+				price_ranges=selected['price_ranges'],
+				min_rating=selected['min_rating'],
+				page=page,
+				page_size=page_size,
+			)
+			if corrected_payload:
+				results = corrected_payload['docs']
+				total_count = corrected_payload['total']
+				spellcheck_suggestions = corrected_payload.get('spellcheck_suggestions', spellcheck_suggestions)
 
 	total_pages = max(1, math.ceil(total_count / page_size))
 	page = min(page, total_pages)
@@ -194,6 +214,7 @@ def search_results(request: HttpRequest) -> HttpResponse:
 
 	context = {
 		'query': selected['q'],
+		'corrected_query': corrected_query,
 		'results': results,
 		'result_count': total_count,
 		'selected': selected,
@@ -204,6 +225,7 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		'prev_page': page - 1,
 		'next_page': page + 1,
 		'query_string': query_params.urlencode(),
+		'spellcheck_suggestions': spellcheck_suggestions,
 		'locations': ['Central', 'East', 'West', 'North', 'South', 'Unknown'],
 		'sentiments': ['Positive', 'Neutral', 'Negative'],
 		'price_ranges': ['$', '$$', '$$$', '$$$$'],

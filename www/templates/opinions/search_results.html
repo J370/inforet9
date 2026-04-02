@@ -15,6 +15,22 @@
         <h1 class="result-title">Search Results for "{{ query|default:'all dishes' }}"</h1>
         <p class="result-count">{{ result_count }} opinions found</p>
 
+        {% if corrected_query %}
+            <div class="spellcheck-box">
+                <p>No exact matches for "{{ query }}". Showing results for</p>
+                <span class="spellcheck-link">{{ corrected_query }}</span>
+            </div>
+        {% endif %}
+
+        {% if spellcheck_suggestions %}
+            <div class="spellcheck-box">
+                <p>Did you mean:</p>
+                <a class="spellcheck-link" href="{% url 'search_results' %}?q={{ spellcheck_suggestions.0|urlencode }}">
+                    {{ spellcheck_suggestions.0 }}
+                </a>
+            </div>
+        {% endif %}
+
         <div class="results-layout">
             <aside class="filters">
                 <h3>Filters</h3>
