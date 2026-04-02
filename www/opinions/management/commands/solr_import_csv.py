@@ -150,8 +150,14 @@ def post_json(url: str, payload: Any, timeout: float = 30.0) -> Any:
 class Command(BaseCommand):
     help = 'Import hawker CSV opinions into Solr and ensure schema fields exist.'
 
+    DEFAULT_CSV = '../classification/full_dataset_with_predictions.csv'
+
     def add_arguments(self, parser) -> None:
-        parser.add_argument('--csv', required=True, help='Absolute or relative path to CSV file.')
+        parser.add_argument(
+            '--csv',
+            default=self.DEFAULT_CSV,
+            help=f'Absolute or relative path to CSV file. Defaults to {self.DEFAULT_CSV}.',
+        )
         parser.add_argument('--solr-base', default='http://localhost:8983/solr', help='Solr base URL.')
         parser.add_argument('--core', default='opinions', help='Solr core name.')
         parser.add_argument('--batch-size', type=int, default=500, help='Batch size for Solr updates.')

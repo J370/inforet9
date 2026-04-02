@@ -102,6 +102,55 @@ TRENDING = [
 ]
 
 
+def _build_local_analytics(rows: list[dict]) -> dict:
+	if not rows:
+		return {
+			'avg_rating': 0.0,
+			'sentiment_counts': {'Positive': 0, 'Neutral': 0, 'Negative': 0},
+			'rating_buckets': {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0},
+			'location_counts': [],
+		}
+
+	sentiment_counts = {'Positive': 0, 'Neutral': 0, 'Negative': 0}
+	rating_buckets = {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0}
+	location_map: dict[str, int] = {}
+
+	total_rating = 0.0
+	for row in rows:
+		rating_value = float(row.get('rating', 0))
+		total_rating += rating_value
+
+		sentiment = str(row.get('sentiment', 'Neutral'))
+		if sentiment in sentiment_counts:
+			sentiment_counts[sentiment] += 1
+
+		if rating_value >= 5:
+			rating_buckets['5'] += 1
+		elif rating_value >= 4:
+			rating_buckets['4'] += 1
+		elif rating_value >= 3:
+			rating_buckets['3'] += 1
+		elif rating_value >= 2:
+			rating_buckets['2'] += 1
+		elif rating_value >= 1:
+			rating_buckets['1'] += 1
+
+		location = str(row.get('location', 'Unknown'))
+		location_map[location] = location_map.get(location, 0) + 1
+
+	location_counts = [
+		{'name': name, 'count': count}
+		for name, count in sorted(location_map.items(), key=lambda item: item[1], reverse=True)[:8]
+	]
+
+	return {
+		'avg_rating': round(total_rating / len(rows), 2),
+		'sentiment_counts': sentiment_counts,
+		'rating_buckets': rating_buckets,
+		'location_counts': location_counts,
+	}
+
+
 def _apply_local_filters(opinions: list[dict], selected: dict) -> list[dict]:
 	"""Filter fallback in-memory records to mirror Solr-driven behavior."""
 	filtered = opinions
@@ -182,11 +231,13 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		start = (page - 1) * page_size
 		end = start + page_size
 		results = local_results[start:end]
+		analytics = _build_local_analytics(local_results)
 		spellcheck_suggestions = []
 		corrected_query = ''
 	else:
 		results = search_payload['docs']
 		total_count = search_payload['total']
+		analytics = search_payload.get('analytics', _build_local_analytics(results))
 		spellcheck_suggestions = search_payload.get('spellcheck_suggestions', [])
 		corrected_query = ''
 
@@ -204,10 +255,31 @@ def search_results(request: HttpRequest) -> HttpResponse:
 			if corrected_payload:
 				results = corrected_payload['docs']
 				total_count = corrected_payload['total']
+				analytics = corrected_payload.get('analytics', _build_local_analytics(results))
 				spellcheck_suggestions = corrected_payload.get('spellcheck_suggestions', spellcheck_suggestions)
 
 	total_pages = max(1, math.ceil(total_count / page_size))
 	page = min(page, total_pages)
+
+	sentiment_order = ['Positive', 'Neutral', 'Negative']
+	sentiment_chart = []
+	for label in sentiment_order:
+		count = int(analytics.get('sentiment_counts', {}).get(label, 0))
+		pct = round((count / total_count) * 100, 1) if total_count else 0
+		sentiment_chart.append({'label': label, 'count': count, 'pct': pct})
+	top_sentiment = max(sentiment_chart, key=lambda item: item['count']) if sentiment_chart else {'label': 'N/A', 'count': 0}
+
+	rating_chart = []
+	for label in ['1', '2', '3', '4', '5']:
+		count = int(analytics.get('rating_buckets', {}).get(label, 0))
+		pct = round((count / total_count) * 100, 1) if total_count else 0
+		rating_chart.append({'label': label, 'count': count, 'pct': pct})
+
+	location_chart = []
+	for item in analytics.get('location_counts', [])[:5]:
+		count = int(item.get('count', 0))
+		pct = round((count / total_count) * 100, 1) if total_count else 0
+		location_chart.append({'name': item.get('name', 'Unknown'), 'count': count, 'pct': pct})
 
 	query_params = request.GET.copy()
 	query_params.pop('page', None)
@@ -217,6 +289,11 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		'corrected_query': corrected_query,
 		'results': results,
 		'result_count': total_count,
+		'analytics': analytics,
+		'sentiment_chart': sentiment_chart,
+		'top_sentiment': top_sentiment,
+		'rating_chart': rating_chart,
+		'location_chart': location_chart,
 		'selected': selected,
 		'current_page': page,
 		'total_pages': total_pages,

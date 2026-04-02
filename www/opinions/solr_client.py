@@ -131,6 +131,19 @@ def search_opinions(
         'fl': 'dish,stall,stall_name,hawker_centre,location,rating,star_rating,sentiment,price_range,review,review_text,author,created_at,likes,comments',
         'start': max(0, (page - 1) * page_size),
         'rows': page_size,
+        'facet': 'true',
+        'facet.mincount': '1',
+        'facet.limit': '8',
+        'facet.field': ['sentiment', 'location'],
+        'facet.query': [
+            'rating:[1 TO 1.999]',
+            'rating:[2 TO 2.999]',
+            'rating:[3 TO 3.999]',
+            'rating:[4 TO 4.999]',
+            'rating:[5 TO 5.999]',
+        ],
+        'stats': 'true',
+        'stats.field': 'rating',
         'spellcheck': 'true',
         'spellcheck.q': query or '',
         'spellcheck.build': 'true',
@@ -153,6 +166,48 @@ def search_opinions(
             payload = json.loads(response.read().decode('utf-8'))
         response_data = payload.get('response', {})
         docs = response_data.get('docs', [])
+
+        facet_counts = payload.get('facet_counts', {})
+        facet_fields = facet_counts.get('facet_fields', {})
+        facet_queries = facet_counts.get('facet_queries', {})
+
+        sentiment_pairs = facet_fields.get('sentiment', []) or []
+        location_pairs = facet_fields.get('location', []) or []
+
+        sentiment_counts: dict[str, int] = {}
+        for i in range(0, len(sentiment_pairs), 2):
+            key = _clean_text(sentiment_pairs[i])
+            value = _safe_int(sentiment_pairs[i + 1], 0)
+            if key:
+                sentiment_counts[key] = value
+
+        location_counts: list[dict[str, Any]] = []
+        for i in range(0, len(location_pairs), 2):
+            key = _clean_text(location_pairs[i])
+            value = _safe_int(location_pairs[i + 1], 0)
+            if key:
+                location_counts.append({'name': key, 'count': value})
+
+        rating_buckets = {
+            '1': _safe_int(facet_queries.get('rating:[1 TO 1.999]'), 0),
+            '2': _safe_int(facet_queries.get('rating:[2 TO 2.999]'), 0),
+            '3': _safe_int(facet_queries.get('rating:[3 TO 3.999]'), 0),
+            '4': _safe_int(facet_queries.get('rating:[4 TO 4.999]'), 0),
+            '5': _safe_int(facet_queries.get('rating:[5 TO 5.999]'), 0),
+        }
+
+        avg_rating = _safe_float(
+            payload.get('stats', {}).get('stats_fields', {}).get('rating', {}).get('mean'),
+            0.0,
+        )
+
+        analytics = {
+            'avg_rating': round(avg_rating, 2) if avg_rating > 0 else 0.0,
+            'sentiment_counts': sentiment_counts,
+            'rating_buckets': rating_buckets,
+            'location_counts': location_counts,
+        }
+
         spellcheck_data = payload.get('spellcheck', {})
         suggestions: list[str] = []
         for suggestion in spellcheck_data.get('suggestions', []):
@@ -181,6 +236,7 @@ def search_opinions(
         return {
             'docs': [_normalize_doc(doc) for doc in docs],
             'total': int(response_data.get('numFound', 0)),
+            'analytics': analytics,
             'spellcheck_suggestions': suggestions,
         }
     except Exception:

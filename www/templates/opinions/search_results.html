@@ -31,6 +31,74 @@
             </div>
         {% endif %}
 
+        <section class="analytics-panel">
+            <div class="analytics-summary">
+                <article class="metric-card">
+                    <p class="metric-label">Total Matches</p>
+                    <p class="metric-value">{{ result_count }}</p>
+                </article>
+                <article class="metric-card">
+                    <p class="metric-label">Average Rating</p>
+                    <p class="metric-value">{{ analytics.avg_rating }}/5</p>
+                </article>
+                <article class="metric-card">
+                    <p class="metric-label">Top Sentiment</p>
+                    <p class="metric-value">{{ top_sentiment.label }}</p>
+                </article>
+            </div>
+
+            <div class="analytics-grid">
+                <article class="chart-card">
+                    <h3>Sentiment Mix</h3>
+                    {% for row in sentiment_chart %}
+                        <div class="chart-row">
+                            <div class="chart-meta">
+                                <span>{{ row.label }}</span>
+                                <span>{{ row.count }}</span>
+                            </div>
+                            <div class="chart-track">
+                                <div class="chart-fill sentiment-{{ row.label|lower }}" style="width: {{ row.pct }}%;"></div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </article>
+
+                <article class="chart-card">
+                    <h3>Rating Distribution</h3>
+                    {% for row in rating_chart %}
+                        <div class="chart-row">
+                            <div class="chart-meta">
+                                <span>{{ row.label }} star</span>
+                                <span>{{ row.count }}</span>
+                            </div>
+                            <div class="chart-track">
+                                <div class="chart-fill rating-fill" style="width: {{ row.pct }}%;"></div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </article>
+
+                <article class="chart-card">
+                    <h3>Top Locations</h3>
+                    {% if location_chart %}
+                        {% for row in location_chart %}
+                            <div class="chart-row">
+                                <div class="chart-meta">
+                                    <span>{{ row.name }}</span>
+                                    <span>{{ row.count }}</span>
+                                </div>
+                                <div class="chart-track">
+                                    <div class="chart-fill location-fill" style="width: {{ row.pct }}%;"></div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="chart-empty">No location analytics available.</p>
+                    {% endif %}
+                </article>
+            </div>
+        </section>
+
         <div class="results-layout">
             <aside class="filters">
                 <h3>Filters</h3>

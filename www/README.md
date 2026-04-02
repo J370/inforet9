@@ -2,7 +2,7 @@
 
 This project is wired to index and search opinions from:
 
-- ../hawker_corpus_final10k.csv
+- ../classification/full_dataset_with_predictions.csv
 
 ## 1) Start Solr and Create Core
 
@@ -26,7 +26,7 @@ curl "http://localhost:8983/solr/admin/cores?action=CREATE&name=opinions&configS
 From this `www` directory:
 
 ```bash
-python3 manage.py solr_import_csv --csv ../hawker_corpus_final10k.csv --core opinions
+python3 manage.py solr_import_csv --core opinions
 ```
 
 Notes:
@@ -52,5 +52,5 @@ curl "http://localhost:8983/solr/opinions/select?q=*:*&rows=3&wt=json"
 ## 5) Reindex Anytime
 
 ```bash
-python3 manage.py solr_import_csv --csv ../hawker_corpus_final10k.csv --core opinions
+python3 manage.py solr_import_csv --core opinions
 ```
