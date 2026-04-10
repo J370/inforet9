@@ -1,4 +1,4 @@
-# HawkerOpinions Django + Solr (CSV Wired)
+# MakanMetrics Django + Solr (CSV Wired)
 
 This project is wired to index and search opinions from:
 
