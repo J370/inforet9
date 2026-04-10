@@ -271,3 +271,72 @@ def search_opinions(
         }
     except Exception:
         return None
+
+
+def fetch_word_cloud_rows(
+    query: str,
+    locations: list[str],
+    sentiments: list[str],
+    sarcasm_flags: list[str],
+    min_rating: int,
+    max_rows: int = 10000,
+    batch_size: int = 1000,
+) -> list[dict[str, Any]] | None:
+    """Fetch review text across the full filtered Solr result set for word cloud building."""
+    enabled = os.getenv('ENABLE_SOLR', 'false').lower() in {'1', 'true', 'yes'}
+    if not enabled:
+        return None
+
+    base_url = os.getenv('SOLR_BASE_URL', 'http://localhost:8983/solr').rstrip('/')
+    core = os.getenv('SOLR_CORE', 'opinions')
+    timeout = float(os.getenv('SOLR_TIMEOUT_SECONDS', '3'))
+
+    fq = _build_filter_queries(locations, sentiments, sarcasm_flags, min_rating)
+    rows_per_request = max(1, min(batch_size, max_rows))
+
+    collected: list[dict[str, Any]] = []
+    start = 0
+    total_found: int | None = None
+
+    try:
+        while len(collected) < max_rows:
+            params: dict[str, Any] = {
+                'q': query or '*:*',
+                'defType': 'edismax',
+                'qf': 'dish stall stall_name hawker_centre review review_text',
+                'fl': 'review,review_text',
+                'start': start,
+                'rows': min(rows_per_request, max_rows - len(collected)),
+                'wt': 'json',
+            }
+            if fq:
+                params['fq'] = fq
+
+            query_string = urlencode(params, doseq=True)
+            url = f'{base_url}/{core}/select?{query_string}'
+
+            with urlopen(url, timeout=timeout) as response:
+                payload = json.loads(response.read().decode('utf-8'))
+
+            response_data = payload.get('response', {})
+            docs = response_data.get('docs', [])
+            if total_found is None:
+                total_found = _safe_int(response_data.get('numFound', 0), 0)
+
+            if not docs:
+                break
+
+            for doc in docs:
+                cleaned_review = _clean_text(doc.get('review', doc.get('review_text')))
+                if cleaned_review:
+                    collected.append({'review': cleaned_review})
+                if len(collected) >= max_rows:
+                    break
+
+            start += len(docs)
+            if total_found is not None and start >= total_found:
+                break
+
+        return collected
+    except Exception:
+        return None

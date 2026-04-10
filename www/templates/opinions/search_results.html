@@ -3,6 +3,7 @@
 {% block title %}MakanMetrics | Search{% endblock %}
 
 {% block extra_head %}
+    <meta name="csrf-token" content="{{ csrf_token_value }}">
     <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -113,14 +114,38 @@
             </div>
         </section>
 
-        <section class="map-panel">
-            <div class="map-panel-header">
-                <h2>Hawker Centre Map View</h2>
-                <p>{{ map_point_count }} centre{{ map_point_count|pluralize }} shown from all matched results.</p>
+        <details class="insights-dropdown" id="insights-dropdown">
+            <summary>
+                <span>Map & Word Cloud Insights</span>
+                <span class="insights-hint">Click to expand</span>
+            </summary>
+
+            <div class="insights-grid">
+                <section class="map-panel">
+                    <div class="map-panel-header">
+                        <h2>Hawker Centre Map View</h2>
+                        <p>{{ map_point_count }} centre{{ map_point_count|pluralize }} shown from all matched results.</p>
+                    </div>
+                    <div id="hawker-map"></div>
+                    {{ map_points|json_script:"hawker-map-data" }}
+                </section>
+
+                <section class="wordcloud-panel">
+                    <div class="wordcloud-header">
+                        <h2>Word Cloud</h2>
+                        <p>Most frequent terms from all matched reviews.</p>
+                    </div>
+                    {% if word_cloud_terms %}
+                        <div class="wordcloud-wrap" id="wordcloud-wrap">
+                            <canvas id="wordcloud-canvas" width="700" height="330" aria-label="Word cloud visualization"></canvas>
+                        </div>
+                        {{ word_cloud_terms|json_script:"word-cloud-data" }}
+                    {% else %}
+                        <p class="wordcloud-empty">No review text available for word cloud.</p>
+                    {% endif %}
+                </section>
             </div>
-            <div id="hawker-map"></div>
-            {{ map_points|json_script:"hawker-map-data" }}
-        </section>
+        </details>
 
         <div class="results-layout">
             <aside class="filters">
@@ -186,6 +211,32 @@
                             <p class="review">{{ item.review }}</p>
                             <div class="card-footer">
                                 <p>{{ item.author }}</p>
+                                <div
+                                    class="relevance-controls"
+                                    data-query="{{ effective_query|default:query }}"
+                                    data-item-key="{{ item.relevance_key }}"
+                                    data-dish="{{ item.dish }}"
+                                    data-stall="{{ item.stall }}"
+                                    data-hawker-centre="{{ item.hawker_centre }}"
+                                    data-review="{{ item.review|truncatechars:180 }}"
+                                >
+                                    <span class="relevance-label">Feedback:</span>
+                                    <button
+                                        type="button"
+                                        class="relevance-btn up {% if item.relevance_vote == 1 %}active{% endif %}"
+                                        data-vote="1"
+                                        aria-label="Thumbs up"
+                                        title="Thumbs up"
+                                    >&#128077;</button>
+                                    <button
+                                        type="button"
+                                        class="relevance-btn down {% if item.relevance_vote == -1 %}active{% endif %}"
+                                        data-vote="-1"
+                                        aria-label="Thumbs down"
+                                        title="Thumbs down"
+                                    >&#128078;</button>
+                                    <span class="relevance-status" aria-live="polite"></span>
+                                </div>
                             </div>
                         </article>
                     {% endfor %}
@@ -222,4 +273,5 @@
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""
     ></script>
+    <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.3/src/wordcloud2.min.js" crossorigin="anonymous"></script>
 {% endblock %}

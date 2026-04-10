@@ -1,13 +1,29 @@
 from __future__ import annotations
 
+from collections import Counter
 import hashlib
+import json
 import math
+import re
 import time
 
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_POST
 
-from .solr_client import search_opinions
+from .solr_client import fetch_word_cloud_rows, search_opinions
+
+
+WORD_CLOUD_STOPWORDS = {
+	'the', 'and', 'for', 'that', 'with', 'this', 'from', 'were', 'was', 'are', 'have', 'has', 'had', 'but', 'not',
+	'you', 'your', 'they', 'them', 'their', 'our', 'out', 'all', 'can', 'could', 'would', 'should', 'just', 'very',
+	'also', 'too', 'its', 'it', 'its', 'im', 'ive', 'dont', 'didnt', 'than', 'then', 'there', 'here', 'about', 'into',
+	'after', 'before', 'over', 'more', 'less', 'only', 'really', 'when', 'what', 'where', 'which', 'while', 'been',
+	'because', 'much', 'some', 'still', 'even', 'will', 'one', 'two', 'three', 'food', 'stall', 'hawker', 'centre',
+	'center', 'road', 'market', 'place', 'time', 'queue', 'good', 'nice', 'best', 'better', 'great', 'taste', 'tasty',
+}
 
 
 REGION_CENTROIDS = {
@@ -253,6 +269,136 @@ def _build_map_points_from_counts(centre_counts: list[dict]) -> list[dict]:
 	return sorted(points, key=lambda point: point['review_count'], reverse=True)
 
 
+def _build_word_cloud_terms(rows: list[dict], limit: int = 60) -> list[dict]:
+	counter: Counter[str] = Counter()
+	for row in rows:
+		review = str(row.get('review', ''))
+		for token in re.findall(r"[a-zA-Z]{3,}", review.lower()):
+			if token in WORD_CLOUD_STOPWORDS:
+				continue
+			counter[token] += 1
+
+	if not counter:
+		return []
+
+	most_common = counter.most_common(limit)
+	max_count = most_common[0][1]
+	min_count = most_common[-1][1]
+	spread = max(1, max_count - min_count)
+
+	terms = []
+	for word, count in most_common:
+		size = 14 + int(((count - min_count) / spread) * 24)
+		terms.append({'word': word, 'count': count, 'size': size})
+
+	return terms
+
+
+def _feedback_tokens(*parts: str) -> list[str]:
+	text = ' '.join(parts).lower()
+	tokens = []
+	for token in re.findall(r'[a-zA-Z]{3,}', text):
+		if token in WORD_CLOUD_STOPWORDS:
+			continue
+		tokens.append(token)
+	return tokens
+
+
+def _query_feedback_key(query: str) -> str:
+	normalized = re.sub(r'\s+', ' ', (query or '').strip().lower())
+	return normalized or '*'
+
+
+def _result_feedback_key(row: dict) -> str:
+	raw = '|'.join(
+		[
+			str(row.get('dish', '')),
+			str(row.get('stall', '')),
+			str(row.get('hawker_centre', '')),
+			str(row.get('rating', '')),
+			str(row.get('review', ''))[:180],
+		]
+	)
+	return hashlib.md5(raw.encode('utf-8')).hexdigest()
+
+
+def _load_query_feedback(session_data: object, query: str) -> dict[str, dict]:
+	feedback = session_data.get('relevance_feedback', {}) if hasattr(session_data, 'get') else {}
+	if not isinstance(feedback, dict):
+		return {}
+	query_key = _query_feedback_key(query)
+	query_feedback = feedback.get(query_key, {})
+	return query_feedback if isinstance(query_feedback, dict) else {}
+
+
+def _apply_relevance_rerank(rows: list[dict], query_feedback: dict[str, dict]) -> list[dict]:
+	if not rows:
+		return rows
+
+	if not query_feedback:
+		for row in rows:
+			row['relevance_score'] = 0.0
+			row['relevance_vote'] = 0
+		return rows
+
+	liked_centres: Counter[str] = Counter()
+	disliked_centres: Counter[str] = Counter()
+	liked_terms: Counter[str] = Counter()
+	disliked_terms: Counter[str] = Counter()
+
+	for entry in query_feedback.values():
+		if not isinstance(entry, dict):
+			continue
+		vote = int(entry.get('vote', 0) or 0)
+		centre = str(entry.get('hawker_centre', '')).strip()
+		terms = entry.get('terms', [])
+		if vote > 0:
+			if centre:
+				liked_centres[centre] += 1
+			for term in terms:
+				liked_terms[str(term)] += 1
+		elif vote < 0:
+			if centre:
+				disliked_centres[centre] += 1
+			for term in terms:
+				disliked_terms[str(term)] += 1
+
+	for row in rows:
+		key = row.get('relevance_key') or _result_feedback_key(row)
+		row['relevance_key'] = key
+		stored = query_feedback.get(key, {})
+		vote = int(stored.get('vote', 0) or 0) if isinstance(stored, dict) else 0
+		score = 0.0
+
+		if vote > 0:
+			score += 120
+		elif vote < 0:
+			score -= 120
+
+		centre = str(row.get('hawker_centre', '')).strip()
+		if centre:
+			score += 18 * liked_centres.get(centre, 0)
+			score -= 14 * disliked_centres.get(centre, 0)
+
+		row_tokens = set(
+			_feedback_tokens(
+				str(row.get('dish', '')),
+				str(row.get('stall', '')),
+				str(row.get('hawker_centre', '')),
+				str(row.get('review', '')),
+			)
+		)
+
+		for token in row_tokens:
+			score += 2.0 * liked_terms.get(token, 0)
+			score -= 1.7 * disliked_terms.get(token, 0)
+
+		row['relevance_score'] = round(score, 2)
+		row['relevance_vote'] = vote
+
+	return sorted(rows, key=lambda item: (item.get('relevance_score', 0), item.get('rating', 0)), reverse=True)
+
+
 def _apply_local_filters(opinions: list[dict], selected: dict) -> list[dict]:
 	"""Filter fallback in-memory records to mirror Solr-driven behavior."""
 	filtered = opinions
@@ -301,7 +447,9 @@ def home(request: HttpRequest) -> HttpResponse:
 	)
 
 
+@ensure_csrf_cookie
 def search_results(request: HttpRequest) -> HttpResponse:
+	csrf_token_value = get_token(request)
 	query_started_at = time.perf_counter()
 	page = max(1, int(request.GET.get('page', '1') or '1'))
 	page_size = 30
@@ -329,6 +477,7 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		start = (page - 1) * page_size
 		end = start + page_size
 		results = local_results[start:end]
+		word_cloud_source_rows = local_results
 		analytics = _build_local_analytics(local_results)
 		sarcasm_summary = _build_sarcasm_summary(local_results)
 		map_points = _build_map_points(local_results)
@@ -337,6 +486,13 @@ def search_results(request: HttpRequest) -> HttpResponse:
 	else:
 		results = search_payload['docs']
 		total_count = search_payload['total']
+		word_cloud_source_rows = fetch_word_cloud_rows(
+			query=selected['q'],
+			locations=selected['locations'],
+			sentiments=selected['sentiments'],
+			sarcasm_flags=selected['sarcasm_flags'],
+			min_rating=selected['min_rating'],
+		) or results
 		analytics = search_payload.get('analytics', _build_local_analytics(results))
 		sarcasm_summary = search_payload.get('sarcasm_summary', _build_sarcasm_summary(results))
 		map_points = _build_map_points_from_counts(analytics.get('hawker_centre_counts', []))
@@ -357,10 +513,23 @@ def search_results(request: HttpRequest) -> HttpResponse:
 			if corrected_payload:
 				results = corrected_payload['docs']
 				total_count = corrected_payload['total']
+				word_cloud_source_rows = fetch_word_cloud_rows(
+					query=corrected_query,
+					locations=selected['locations'],
+					sentiments=selected['sentiments'],
+					sarcasm_flags=selected['sarcasm_flags'],
+					min_rating=selected['min_rating'],
+				) or results
 				analytics = corrected_payload.get('analytics', _build_local_analytics(results))
 				sarcasm_summary = corrected_payload.get('sarcasm_summary', _build_sarcasm_summary(results))
 				map_points = _build_map_points_from_counts(analytics.get('hawker_centre_counts', []))
 				spellcheck_suggestions = corrected_payload.get('spellcheck_suggestions', spellcheck_suggestions)
+
+	effective_query = corrected_query or selected['q']
+	query_feedback = _load_query_feedback(request.session, effective_query)
+	for item in results:
+		item['relevance_key'] = _result_feedback_key(item)
+	results = _apply_relevance_rerank(results, query_feedback)
 
 	total_pages = max(1, math.ceil(total_count / page_size))
 	page = min(page, total_pages)
@@ -388,8 +557,10 @@ def search_results(request: HttpRequest) -> HttpResponse:
 	query_params = request.GET.copy()
 	query_params.pop('page', None)
 	query_speed_ms = round((time.perf_counter() - query_started_at) * 1000, 1)
+	word_cloud_terms = _build_word_cloud_terms(word_cloud_source_rows)
 
 	context = {
+		'csrf_token_value': csrf_token_value,
 		'query': selected['q'],
 		'corrected_query': corrected_query,
 		'results': results,
@@ -411,7 +582,9 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		'query_string': query_params.urlencode(),
 		'map_points': map_points,
 		'map_point_count': len(map_points),
+		'word_cloud_terms': word_cloud_terms,
 		'spellcheck_suggestions': spellcheck_suggestions,
+		'effective_query': effective_query,
 		'locations': ['Central', 'East', 'West', 'North', 'South'],
 		'sentiments': ['Positive', 'Neutral', 'Negative'],
 		'sarcasm_options': [
@@ -420,3 +593,60 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		],
 	}
 	return render(request, 'opinions/search_results.html', context)
+
+
+@require_POST
+def submit_relevance_feedback(request: HttpRequest) -> JsonResponse:
+	try:
+		payload = json.loads(request.body.decode('utf-8'))
+	except Exception:
+		return JsonResponse({'ok': False, 'error': 'Invalid JSON payload.'}, status=400)
+
+	query = str(payload.get('query', '')).strip()
+	item_key = str(payload.get('item_key', '')).strip()
+	vote = int(payload.get('vote', 0) or 0)
+
+	if not item_key:
+		return JsonResponse({'ok': False, 'error': 'Missing item key.'}, status=400)
+	if vote not in {-1, 0, 1}:
+		return JsonResponse({'ok': False, 'error': 'Vote must be 1, 0, or -1.'}, status=400)
+
+	profile = payload.get('profile', {})
+	if not isinstance(profile, dict):
+		profile = {}
+
+	dish = str(profile.get('dish', '')).strip()
+	stall = str(profile.get('stall', '')).strip()
+	hawker_centre = str(profile.get('hawker_centre', '')).strip()
+	review = str(profile.get('review', '')).strip()
+
+	query_key = _query_feedback_key(query)
+	feedback_store = request.session.get('relevance_feedback', {})
+	if not isinstance(feedback_store, dict):
+		feedback_store = {}
+
+	query_feedback = feedback_store.get(query_key, {})
+	if not isinstance(query_feedback, dict):
+		query_feedback = {}
+
+	if vote == 0:
+		query_feedback.pop(item_key, None)
+	else:
+		query_feedback[item_key] = {
+			'vote': vote,
+			'dish': dish,
+			'stall': stall,
+			'hawker_centre': hawker_centre,
+			'terms': _feedback_tokens(dish, stall, hawker_centre, review),
+		}
+
+	if len(query_feedback) > 300:
+		oldest_keys = list(query_feedback.keys())[:-300]
+		for key in oldest_keys:
+			query_feedback.pop(key, None)
+
+	feedback_store[query_key] = query_feedback
+	request.session['relevance_feedback'] = feedback_store
+	request.session.modified = True
+
+	return JsonResponse({'ok': True, 'saved_vote': vote})
