@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 import re
+from difflib import get_close_matches
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -63,6 +67,71 @@ def _build_sarcasm_summary(total: int, facet_queries: dict[str, Any]) -> dict[st
         'non_sarcastic_count': non_sarcastic_count,
         'sarcasm_rate': sarcasm_rate,
     }
+
+
+@lru_cache(maxsize=1)
+def _load_spellcheck_vocabulary() -> tuple[str, ...]:
+    vocabulary: set[str] = {
+        'chicken', 'rice', 'laksa', 'satay', 'noodle', 'noodles', 'mee', 'fish', 'soup', 'coffee', 'curry',
+        'bak', 'chor', 'hokkien', 'char', 'kway', 'teow', 'rojak', 'dessert', 'sugarcane', 'kangkong', 'lontong',
+        'wanton', 'beef', 'prawn', 'fried', 'stall', 'hawker', 'centre', 'center', 'food', 'market', 'tow', 'payoh',
+    }
+
+    repo_root = Path(__file__).resolve().parents[2]
+    candidate_paths = [
+        repo_root / 'Q5 Sarcasm detection' / 'final_dataset_with_sarcasm_merged.csv',
+        repo_root / 'hawker_corpus_final10k.csv',
+        repo_root / 'Q4 Classification' / 'hawker_corpus_final10k.csv',
+    ]
+
+    for csv_path in candidate_paths:
+        if not csv_path.exists():
+            continue
+        try:
+            with csv_path.open('r', encoding='utf-8-sig', newline='') as handle:
+                reader = csv.DictReader(handle)
+                for row in reader:
+                    for field_name in ('review_text', 'stall_name', 'hawker_centre', 'dish', 'review', 'stall'):
+                        text = _clean_text(row.get(field_name, ''))
+                        for token in re.findall(r'[a-zA-Z]{3,}', text.lower()):
+                            vocabulary.add(token)
+        except Exception:
+            continue
+
+    return tuple(sorted(vocabulary))
+
+
+def _fallback_spellcheck_suggestions(query: str) -> list[str]:
+    normalized = _clean_text(query).lower()
+    if not normalized:
+        return []
+
+    tokens = re.findall(r"[a-zA-Z]{3,}", normalized)
+    if not tokens:
+        return []
+
+    vocabulary = _load_spellcheck_vocabulary()
+    corrected_tokens: list[str] = []
+    changed = False
+
+    for token in tokens:
+        matches = get_close_matches(token, vocabulary, n=1, cutoff=0.74)
+        if matches:
+            suggestion = matches[0]
+            corrected_tokens.append(suggestion)
+            changed = changed or suggestion != token
+        else:
+            corrected_tokens.append(token)
+
+    if not changed:
+        joined = ' '.join(tokens)
+        matches = get_close_matches(joined, vocabulary, n=1, cutoff=0.82)
+        if matches and matches[0] != joined:
+            return [matches[0]]
+        return []
+
+    corrected_query = ' '.join(corrected_tokens).strip()
+    return [corrected_query] if corrected_query and corrected_query != normalized else []
 
 
 def _clean_text(value: Any) -> str:
@@ -262,6 +331,8 @@ def search_opinions(
                     cleaned = _clean_text(collation)
                     if cleaned and cleaned.lower() != query.lower():
                         suggestions.append(cleaned)
+        if not suggestions:
+            suggestions = _fallback_spellcheck_suggestions(query)
         return {
             'docs': [_normalize_doc(doc) for doc in docs],
             'total': total_matches,

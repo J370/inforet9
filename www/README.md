@@ -16,10 +16,16 @@ solr create -c opinions
 If `solr` CLI is not available, use Docker:
 
 ```bash
-docker run --name hawker-solr -p 8983:8983 -d solr:9
-# wait a few seconds for startup
-curl "http://localhost:8983/solr/admin/cores?action=CREATE&name=opinions&configSet=_default"
+docker run --name hawker-solr -p 8983:8983 -d solr:9 solr-precreate opinions
 ```
+
+If you already started the container without a core, create it inside the container:
+
+```bash
+docker exec -it hawker-solr solr create -c opinions -n _default
+```
+
+If `_default` is still missing, keep the container image and core name above, then restart with `solr-precreate opinions`. That is the most reliable option for the official Solr image.
 
 ## 2) Import CSV into Solr
 
