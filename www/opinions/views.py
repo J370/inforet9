@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import time
 
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -301,6 +302,7 @@ def home(request: HttpRequest) -> HttpResponse:
 
 
 def search_results(request: HttpRequest) -> HttpResponse:
+	query_started_at = time.perf_counter()
 	page = max(1, int(request.GET.get('page', '1') or '1'))
 	page_size = 30
 
@@ -385,6 +387,7 @@ def search_results(request: HttpRequest) -> HttpResponse:
 
 	query_params = request.GET.copy()
 	query_params.pop('page', None)
+	query_speed_ms = round((time.perf_counter() - query_started_at) * 1000, 1)
 
 	context = {
 		'query': selected['q'],
@@ -393,6 +396,7 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		'result_count': total_count,
 		'analytics': analytics,
 		'sarcasm_summary': sarcasm_summary,
+		'query_speed_ms': query_speed_ms,
 		'sentiment_chart': sentiment_chart,
 		'top_sentiment': top_sentiment,
 		'rating_chart': rating_chart,

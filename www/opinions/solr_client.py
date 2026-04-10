@@ -65,50 +65,6 @@ def _build_sarcasm_summary(total: int, facet_queries: dict[str, Any]) -> dict[st
     }
 
 
-def _fetch_hawker_centre_counts(
-    base_url: str,
-    core: str,
-    timeout: float,
-    query: str,
-    fq: list[str],
-    max_rows: int,
-) -> list[dict[str, Any]]:
-    if max_rows <= 0:
-        return []
-
-    params: dict[str, Any] = {
-        'q': query or '*:*',
-        'defType': 'edismax',
-        'qf': 'dish stall stall_name hawker_centre review review_text',
-        'fl': 'hawker_centre,location',
-        'start': 0,
-        'rows': min(max_rows, 15000),
-        'wt': 'json',
-    }
-    if fq:
-        params['fq'] = fq
-
-    query_string = urlencode(params, doseq=True)
-    url = f'{base_url}/{core}/select?{query_string}'
-
-    counts: dict[str, dict[str, Any]] = {}
-    aggregation_timeout = max(timeout, 12.0)
-    with urlopen(url, timeout=aggregation_timeout) as response:
-        payload = json.loads(response.read().decode('utf-8'))
-    docs = payload.get('response', {}).get('docs', [])
-
-    for doc in docs:
-        name = _clean_text(doc.get('hawker_centre'))
-        if not name:
-            continue
-        region = _clean_text(doc.get('location')) or 'Central'
-        if name not in counts:
-            counts[name] = {'name': name, 'count': 0, 'region': region}
-        counts[name]['count'] += 1
-
-    return sorted(counts.values(), key=lambda item: item['count'], reverse=True)
-
-
 def _clean_text(value: Any) -> str:
     """Normalize list-like string values such as "['foo']" or '["foo"]'."""
     if value is None:
@@ -192,7 +148,8 @@ def search_opinions(
         'facet': 'true',
         'facet.mincount': '1',
         'facet.limit': '8',
-        'facet.field': ['sentiment', 'location'],
+        'facet.field': ['sentiment', 'location', 'hawker_centre_exact'],
+        'f.hawker_centre_exact.facet.limit': '-1',
         'facet.query': [
             'rating:[1 TO 1.999]',
             'rating:[2 TO 2.999]',
@@ -233,6 +190,7 @@ def search_opinions(
 
         sentiment_pairs = facet_fields.get('sentiment', []) or []
         location_pairs = facet_fields.get('location', []) or []
+        hawker_centre_pairs = facet_fields.get('hawker_centre_exact', []) or []
 
         sentiment_counts: dict[str, int] = {}
         for i in range(0, len(sentiment_pairs), 2):
@@ -248,6 +206,13 @@ def search_opinions(
             if key:
                 location_counts.append({'name': key, 'count': value})
 
+        hawker_centre_counts: list[dict[str, Any]] = []
+        for i in range(0, len(hawker_centre_pairs), 2):
+            key = _clean_text(hawker_centre_pairs[i])
+            value = _safe_int(hawker_centre_pairs[i + 1], 0)
+            if key:
+                hawker_centre_counts.append({'name': key, 'count': value})
+
         rating_buckets = {
             '1': _safe_int(facet_queries.get('rating:[1 TO 1.999]'), 0),
             '2': _safe_int(facet_queries.get('rating:[2 TO 2.999]'), 0),
@@ -260,15 +225,6 @@ def search_opinions(
         avg_rating = _safe_float(
             payload.get('stats', {}).get('stats_fields', {}).get('rating', {}).get('mean'),
             0.0,
-        )
-
-        hawker_centre_counts = _fetch_hawker_centre_counts(
-            base_url,
-            core,
-            timeout,
-            query,
-            fq,
-            total_matches,
         )
 
         analytics = {

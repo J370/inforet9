@@ -119,6 +119,7 @@ def build_doc(row: dict[str, str], index: int) -> dict[str, Any]:
     return {
         'id': f'opinion-{index}',
         'hawker_centre': hawker_centre or 'Unknown Hawker Centre',
+        'hawker_centre_exact': hawker_centre or 'Unknown Hawker Centre',
         'stall_name': compact_stall,
         'review_text': review_text,
         'star_rating': star_rating,
@@ -183,6 +184,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE('Ensuring Solr schema fields...'))
         fields = [
             {'name': 'hawker_centre', 'type': 'text_general', 'stored': True, 'indexed': True},
+            {'name': 'hawker_centre_exact', 'type': 'string', 'stored': True, 'indexed': True},
             {'name': 'stall_name', 'type': 'text_general', 'stored': True, 'indexed': True},
             {'name': 'review_text', 'type': 'text_general', 'stored': True, 'indexed': True},
             {'name': 'star_rating', 'type': 'pfloat', 'stored': True, 'indexed': True},
