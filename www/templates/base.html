@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/site.css' %}">
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
     <header class="topbar">
@@ -25,5 +26,6 @@
     </main>
     
     <script src="{% static 'js/site.js' %}"></script>
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

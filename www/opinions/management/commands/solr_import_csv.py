@@ -27,6 +27,7 @@ REQUIRED_CSV_COLUMNS = {
     'star_rating',
     'sentiment',
     'word_count',
+    'pred_sarcasm',
 }
 
 
@@ -78,6 +79,13 @@ def to_int(value: str, default: int = 0) -> int:
         return default
 
 
+def sanitize_sarcasm(value: str) -> int:
+    try:
+        return 1 if int(float(value)) == 1 else 0
+    except (TypeError, ValueError):
+        return 0
+
+
 def normalize_csv_row(row: dict[str, str]) -> dict[str, str]:
     """Normalize CSV keys to handle BOM/spacing issues in headers."""
     normalized: dict[str, str] = {}
@@ -104,6 +112,7 @@ def build_doc(row: dict[str, str], index: int) -> dict[str, Any]:
     star_rating = to_float(row.get('star_rating', '0'), 0.0)
     sentiment = sanitize_sentiment(row.get('sentiment', 'Neutral'))
     word_count = to_int(row.get('word_count', '0'), 0)
+    pred_sarcasm = sanitize_sarcasm(row.get('pred_sarcasm', '0'))
 
     compact_stall = re.sub(r'\s+', ' ', stall_name) or 'Unknown Stall'
 
@@ -115,6 +124,7 @@ def build_doc(row: dict[str, str], index: int) -> dict[str, Any]:
         'star_rating': star_rating,
         'sentiment': sentiment,
         'word_count': word_count,
+        'pred_sarcasm': pred_sarcasm,
         'dish': compact_stall,
         'stall': compact_stall,
         'review': review_text,
@@ -178,6 +188,7 @@ class Command(BaseCommand):
             {'name': 'star_rating', 'type': 'pfloat', 'stored': True, 'indexed': True},
             {'name': 'sentiment', 'type': 'string', 'stored': True, 'indexed': True},
             {'name': 'word_count', 'type': 'pint', 'stored': True, 'indexed': True},
+            {'name': 'pred_sarcasm', 'type': 'pint', 'stored': True, 'indexed': True},
             {'name': 'dish', 'type': 'text_general', 'stored': True, 'indexed': True},
             {'name': 'stall', 'type': 'text_general', 'stored': True, 'indexed': True},
             {'name': 'review', 'type': 'text_general', 'stored': True, 'indexed': True},

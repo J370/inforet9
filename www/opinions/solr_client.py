@@ -11,6 +11,7 @@ from urllib.request import urlopen
 def _build_filter_queries(
     locations: list[str],
     sentiments: list[str],
+    sarcasm_flags: list[str],
     min_rating: int,
 ) -> list[str]:
     fq = []
@@ -20,6 +21,10 @@ def _build_filter_queries(
     if sentiments:
         values = ' OR '.join(f'"{value}"' for value in sentiments)
         fq.append(f'sentiment:({values})')
+    valid_sarcasm = [flag for flag in sarcasm_flags if flag in {'0', '1'}]
+    if valid_sarcasm:
+        values = ' OR '.join(valid_sarcasm)
+        fq.append(f'pred_sarcasm:({values})')
     if min_rating > 0:
         lower = float(min_rating)
         upper = lower + 0.999
@@ -42,6 +47,66 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _sarcasm_label(value: Any) -> str:
+    return 'Sarcastic' if _safe_int(value, 0) == 1 else 'Not Sarcastic'
+
+
+def _build_sarcasm_summary(total: int, facet_queries: dict[str, Any]) -> dict[str, Any]:
+    sarcastic_count = _safe_int(facet_queries.get('pred_sarcasm:1'), 0)
+    non_sarcastic_count = _safe_int(facet_queries.get('pred_sarcasm:0'), 0)
+    sarcasm_rate = round((sarcastic_count / total) * 100, 1) if total else 0.0
+    return {
+        'total': total,
+        'sarcastic_count': sarcastic_count,
+        'non_sarcastic_count': non_sarcastic_count,
+        'sarcasm_rate': sarcasm_rate,
+    }
+
+
+def _fetch_hawker_centre_counts(
+    base_url: str,
+    core: str,
+    timeout: float,
+    query: str,
+    fq: list[str],
+    max_rows: int,
+) -> list[dict[str, Any]]:
+    if max_rows <= 0:
+        return []
+
+    params: dict[str, Any] = {
+        'q': query or '*:*',
+        'defType': 'edismax',
+        'qf': 'dish stall stall_name hawker_centre review review_text',
+        'fl': 'hawker_centre,location',
+        'start': 0,
+        'rows': min(max_rows, 15000),
+        'wt': 'json',
+    }
+    if fq:
+        params['fq'] = fq
+
+    query_string = urlencode(params, doseq=True)
+    url = f'{base_url}/{core}/select?{query_string}'
+
+    counts: dict[str, dict[str, Any]] = {}
+    aggregation_timeout = max(timeout, 12.0)
+    with urlopen(url, timeout=aggregation_timeout) as response:
+        payload = json.loads(response.read().decode('utf-8'))
+    docs = payload.get('response', {}).get('docs', [])
+
+    for doc in docs:
+        name = _clean_text(doc.get('hawker_centre'))
+        if not name:
+            continue
+        region = _clean_text(doc.get('location')) or 'Central'
+        if name not in counts:
+            counts[name] = {'name': name, 'count': 0, 'region': region}
+        counts[name]['count'] += 1
+
+    return sorted(counts.values(), key=lambda item: item['count'], reverse=True)
 
 
 def _clean_text(value: Any) -> str:
@@ -83,6 +148,7 @@ def _normalize_doc(doc: dict[str, Any]) -> dict[str, Any]:
     sentiment = _clean_text(doc.get('sentiment')) or 'Neutral'
     review = _clean_text(doc.get('review', doc.get('review_text'))) or 'No review text available.'
     author = _clean_text(doc.get('author')) or 'Anonymous'
+    sarcasm_flag = _safe_int(doc.get('pred_sarcasm'), 0)
 
     return {
         'dish': dish,
@@ -91,6 +157,8 @@ def _normalize_doc(doc: dict[str, Any]) -> dict[str, Any]:
         'location': location,
         'rating': _safe_float(doc.get('rating', doc.get('star_rating')), 0.0),
         'sentiment': sentiment,
+        'pred_sarcasm': sarcasm_flag,
+        'sarcasm_label': _sarcasm_label(sarcasm_flag),
         'review': review,
         'author': author,
     }
@@ -100,6 +168,7 @@ def search_opinions(
     query: str,
     locations: list[str],
     sentiments: list[str],
+    sarcasm_flags: list[str],
     min_rating: int,
     page: int,
     page_size: int,
@@ -117,7 +186,7 @@ def search_opinions(
         'q': query or '*:*',
         'defType': 'edismax',
         'qf': 'dish stall stall_name hawker_centre review review_text',
-        'fl': 'dish,stall,stall_name,hawker_centre,location,rating,star_rating,sentiment,review,review_text,author',
+        'fl': 'dish,stall,stall_name,hawker_centre,location,rating,star_rating,sentiment,pred_sarcasm,review,review_text,author',
         'start': max(0, (page - 1) * page_size),
         'rows': page_size,
         'facet': 'true',
@@ -130,6 +199,8 @@ def search_opinions(
             'rating:[3 TO 3.999]',
             'rating:[4 TO 4.999]',
             'rating:[5 TO 5.999]',
+            'pred_sarcasm:1',
+            'pred_sarcasm:0',
         ],
         'stats': 'true',
         'stats.field': 'rating',
@@ -143,7 +214,7 @@ def search_opinions(
         'wt': 'json',
     }
 
-    fq = _build_filter_queries(locations, sentiments, min_rating)
+    fq = _build_filter_queries(locations, sentiments, sarcasm_flags, min_rating)
     if fq:
         params['fq'] = fq
 
@@ -185,9 +256,19 @@ def search_opinions(
             '5': _safe_int(facet_queries.get('rating:[5 TO 5.999]'), 0),
         }
 
+        total_matches = int(response_data.get('numFound', 0))
         avg_rating = _safe_float(
             payload.get('stats', {}).get('stats_fields', {}).get('rating', {}).get('mean'),
             0.0,
+        )
+
+        hawker_centre_counts = _fetch_hawker_centre_counts(
+            base_url,
+            core,
+            timeout,
+            query,
+            fq,
+            total_matches,
         )
 
         analytics = {
@@ -195,7 +276,10 @@ def search_opinions(
             'sentiment_counts': sentiment_counts,
             'rating_buckets': rating_buckets,
             'location_counts': location_counts,
+            'hawker_centre_counts': hawker_centre_counts,
         }
+
+        sarcasm_summary = _build_sarcasm_summary(total_matches, facet_queries)
 
         spellcheck_data = payload.get('spellcheck', {})
         suggestions: list[str] = []
@@ -224,8 +308,9 @@ def search_opinions(
                         suggestions.append(cleaned)
         return {
             'docs': [_normalize_doc(doc) for doc in docs],
-            'total': int(response_data.get('numFound', 0)),
+            'total': total_matches,
             'analytics': analytics,
+            'sarcasm_summary': sarcasm_summary,
             'spellcheck_suggestions': suggestions,
         }
     except Exception:

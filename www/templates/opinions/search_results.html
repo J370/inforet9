@@ -2,11 +2,18 @@
 
 {% block title %}HawkerOpinions | Search{% endblock %}
 
+{% block extra_head %}
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    >
+{% endblock %}
+
 {% block content %}
 <section class="search-page">
     <div class="container">
-        <a class="back-link" href="{% url 'home' %}">Back to Home</a>
-
         <form class="search-wrap search-compact" action="{% url 'search_results' %}" method="get">
             <input type="text" name="q" value="{{ query }}" placeholder="Search for hawker dishes, stalls, or food centres...">
             <button type="submit" aria-label="Search">Search</button>
@@ -35,6 +42,10 @@
                 <article class="metric-card">
                     <p class="metric-label">Total Matches</p>
                     <p class="metric-value">{{ result_count }}</p>
+                </article>
+                <article class="metric-card">
+                    <p class="metric-label">Sarcasm Rate</p>
+                    <p class="metric-value">{{ sarcasm_summary.sarcasm_rate }}%</p>
                 </article>
                 <article class="metric-card">
                     <p class="metric-label">Average Rating</p>
@@ -98,6 +109,15 @@
             </div>
         </section>
 
+        <section class="map-panel">
+            <div class="map-panel-header">
+                <h2>Hawker Centre Map View</h2>
+                <p>{{ map_point_count }} centre{{ map_point_count|pluralize }} shown from all matched results.</p>
+            </div>
+            <div id="hawker-map"></div>
+            {{ map_points|json_script:"hawker-map-data" }}
+        </section>
+
         <div class="results-layout">
             <aside class="filters">
                 <h3>Filters</h3>
@@ -128,6 +148,13 @@
                         {% endfor %}
                     </div>
 
+                    <div class="filter-group">
+                        <h4>Sarcasm</h4>
+                        {% for option in sarcasm_options %}
+                            <label><input type="checkbox" name="sarcasm" value="{{ option.value }}" {% if option.value in selected.sarcasm_flags %}checked{% endif %}> {{ option.label }}</label>
+                        {% endfor %}
+                    </div>
+
                     <button class="apply-btn" type="submit">Apply Filters</button>
                 </form>
             </aside>
@@ -137,7 +164,7 @@
                     {% for item in results %}
                         <article class="result-card">
                             <div class="card-header">
-                                <div>
+                                <div class="card-main">
                                     <h3>{{ item.dish }}</h3>
                                     {% if item.stall != item.dish %}
                                         <p class="stall">{{ item.stall }}</p>
@@ -146,7 +173,10 @@
                                 </div>
                                 <div class="rating-side">
                                     <p class="rating">{{ item.rating }}/5</p>
-                                    <p class="sentiment {{ item.sentiment|lower }}">{{ item.sentiment }}</p>
+                                    <div class="tag-row">
+                                        <p class="sentiment {{ item.sentiment|lower }}">{{ item.sentiment }}</p>
+                                        <p class="sarcasm {% if item.pred_sarcasm %}sarcastic{% else %}plain{% endif %}">{{ item.sarcasm_label }}</p>
+                                    </div>
                                 </div>
                             </div>
                             <p class="review">{{ item.review }}</p>
@@ -180,4 +210,12 @@
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+    ></script>
 {% endblock %}
