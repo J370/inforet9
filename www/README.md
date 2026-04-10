@@ -2,7 +2,7 @@
 
 This project is wired to index and search opinions from:
 
-- ../classification/full_dataset_with_predictions.csv
+- ../Q5 Sarcasm detection/final_dataset_with_sarcasm_merged.csv
 
 ## 1) Start Solr and Create Core
 

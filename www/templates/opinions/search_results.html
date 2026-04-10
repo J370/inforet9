@@ -13,7 +13,6 @@
         </form>
 
         <h1 class="result-title">Search Results for "{{ query|default:'all dishes' }}"</h1>
-        <p class="result-count">{{ result_count }} opinions found</p>
 
         {% if corrected_query %}
             <div class="spellcheck-box">
@@ -129,13 +128,6 @@
                         {% endfor %}
                     </div>
 
-                    <div class="filter-group">
-                        <h4>Price Range</h4>
-                        {% for price in price_ranges %}
-                            <label><input type="checkbox" name="price" value="{{ price }}" {% if price in selected.price_ranges %}checked{% endif %}> {{ price }}</label>
-                        {% endfor %}
-                    </div>
-
                     <button class="apply-btn" type="submit">Apply Filters</button>
                 </form>
             </aside>
@@ -150,7 +142,7 @@
                                     {% if item.stall != item.dish %}
                                         <p class="stall">{{ item.stall }}</p>
                                     {% endif %}
-                                    <p class="meta">{{ item.hawker_centre }} · {{ item.location }} · {{ item.price_range }}</p>
+                                    <p class="meta">{{ item.hawker_centre }} · {{ item.location }}</p>
                                 </div>
                                 <div class="rating-side">
                                     <p class="rating">{{ item.rating }}/5</p>
@@ -159,8 +151,7 @@
                             </div>
                             <p class="review">{{ item.review }}</p>
                             <div class="card-footer">
-                                <p>{{ item.author }} · {{ item.created_at }}</p>
-                                <p>{{ item.likes }} likes · {{ item.comments }} comments</p>
+                                <p>{{ item.author }}</p>
                             </div>
                         </article>
                     {% endfor %}

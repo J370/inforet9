@@ -15,12 +15,8 @@ SAMPLE_OPINIONS = [
 		'location': 'Central',
 		'rating': 4.5,
 		'sentiment': 'Positive',
-		'price_range': '$',
 		'review': 'The chicken is tender and the rice is fragrant with garlic and ginger. Queue moves fast.',
 		'author': 'FoodieJohn',
-		'created_at': '2 days ago',
-		'likes': 234,
-		'comments': 45,
 	},
 	{
 		'dish': 'Char Kway Teow',
@@ -29,12 +25,8 @@ SAMPLE_OPINIONS = [
 		'location': 'Central',
 		'rating': 4.8,
 		'sentiment': 'Positive',
-		'price_range': '$$',
 		'review': 'Excellent wok hei and generous lap cheong. Slightly oily but worth it.',
 		'author': 'HawkerFan88',
-		'created_at': '1 week ago',
-		'likes': 456,
-		'comments': 78,
 	},
 	{
 		'dish': 'Laksa',
@@ -43,12 +35,8 @@ SAMPLE_OPINIONS = [
 		'location': 'East',
 		'rating': 4.2,
 		'sentiment': 'Neutral',
-		'price_range': '$$',
 		'review': 'Rich broth with decent spice, but can feel heavy from the coconut.',
 		'author': 'MaryTan',
-		'created_at': '3 days ago',
-		'likes': 189,
-		'comments': 34,
 	},
 	{
 		'dish': 'Bak Chor Mee',
@@ -57,12 +45,8 @@ SAMPLE_OPINIONS = [
 		'location': 'Central',
 		'rating': 4.6,
 		'sentiment': 'Positive',
-		'price_range': '$$$',
 		'review': 'Flavorful minced pork and a balanced vinegar-chili mix. Premium but solid.',
 		'author': 'NoodleLover',
-		'created_at': '5 days ago',
-		'likes': 312,
-		'comments': 56,
 	},
 	{
 		'dish': 'Satay',
@@ -71,12 +55,8 @@ SAMPLE_OPINIONS = [
 		'location': 'Central',
 		'rating': 3.5,
 		'sentiment': 'Negative',
-		'price_range': '$$$',
 		'review': 'Touristy pricing and sauce is overly sweet. There are better neighborhood stalls.',
 		'author': 'LocalEats',
-		'created_at': '1 day ago',
-		'likes': 89,
-		'comments': 23,
 	},
 	{
 		'dish': 'Hokkien Mee',
@@ -85,22 +65,10 @@ SAMPLE_OPINIONS = [
 		'location': 'South',
 		'rating': 4.7,
 		'sentiment': 'Positive',
-		'price_range': '$$',
 		'review': 'Great prawn stock depth and sambal on the side ties everything together.',
 		'author': 'PrawnMeeFanatic',
-		'created_at': '4 days ago',
-		'likes': 401,
-		'comments': 67,
 	},
 ]
-
-TRENDING = [
-	('Best Hainanese chicken rice in Toa Payoh', '3.2k opinions'),
-	('Char kway teow: wok hei vs health concerns', '2.8k opinions'),
-	('Is Lau Pa Sat overrated for tourists?', '2.1k opinions'),
-	('Maxwell Food Centre vs Chinatown Complex', '1.9k opinions'),
-]
-
 
 def _build_local_analytics(rows: list[dict]) -> dict:
 	if not rows:
@@ -172,9 +140,6 @@ def _apply_local_filters(opinions: list[dict], selected: dict) -> list[dict]:
 	if selected['sentiments']:
 		filtered = [row for row in filtered if row['sentiment'] in selected['sentiments']]
 
-	if selected['price_ranges']:
-		filtered = [row for row in filtered if row['price_range'] in selected['price_ranges']]
-
 	if selected['min_rating'] > 0:
 		lower = float(selected['min_rating'])
 		upper = lower + 0.999
@@ -188,18 +153,12 @@ def home(request: HttpRequest) -> HttpResponse:
 		request,
 		'opinions/home.html',
 		{
-			'trending': TRENDING,
 			'quick_queries': [
 				'Where to find the best laksa?',
 				'Is Tian Tian chicken rice worth the queue?',
 				'Halal options at Bedok hawker centre',
 			],
 			'dish_types': ['Chicken Rice', 'Noodles', 'Seafood', 'BBQ & Satay', 'Drinks & Desserts', 'Local Favorites'],
-			'stats': [
-				('10K+', 'Reviews & Opinions'),
-				('120+', 'Hawker Centres'),
-				('500+', 'Signature Dishes'),
-			],
 		},
 	)
 
@@ -212,7 +171,6 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		'q': request.GET.get('q', '').strip(),
 		'locations': request.GET.getlist('location'),
 		'sentiments': request.GET.getlist('sentiment'),
-		'price_ranges': request.GET.getlist('price'),
 		'min_rating': int(request.GET.get('rating', '0')),
 	}
 
@@ -220,7 +178,6 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		query=selected['q'],
 		locations=selected['locations'],
 		sentiments=selected['sentiments'],
-		price_ranges=selected['price_ranges'],
 		min_rating=selected['min_rating'],
 		page=page,
 		page_size=page_size,
@@ -247,7 +204,6 @@ def search_results(request: HttpRequest) -> HttpResponse:
 				query=corrected_query,
 				locations=selected['locations'],
 				sentiments=selected['sentiments'],
-				price_ranges=selected['price_ranges'],
 				min_rating=selected['min_rating'],
 				page=page,
 				page_size=page_size,
@@ -305,6 +261,5 @@ def search_results(request: HttpRequest) -> HttpResponse:
 		'spellcheck_suggestions': spellcheck_suggestions,
 		'locations': ['Central', 'East', 'West', 'North', 'South', 'Unknown'],
 		'sentiments': ['Positive', 'Neutral', 'Negative'],
-		'price_ranges': ['$', '$$', '$$$', '$$$$'],
 	}
 	return render(request, 'opinions/search_results.html', context)

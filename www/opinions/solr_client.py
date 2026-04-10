@@ -11,7 +11,6 @@ from urllib.request import urlopen
 def _build_filter_queries(
     locations: list[str],
     sentiments: list[str],
-    price_ranges: list[str],
     min_rating: int,
 ) -> list[str]:
     fq = []
@@ -21,9 +20,6 @@ def _build_filter_queries(
     if sentiments:
         values = ' OR '.join(f'"{value}"' for value in sentiments)
         fq.append(f'sentiment:({values})')
-    if price_ranges:
-        values = ' OR '.join(f'"{value}"' for value in price_ranges)
-        fq.append(f'price_range:({values})')
     if min_rating > 0:
         lower = float(min_rating)
         upper = lower + 0.999
@@ -85,10 +81,8 @@ def _normalize_doc(doc: dict[str, Any]) -> dict[str, Any]:
     hawker_centre = _clean_text(doc.get('hawker_centre')) or 'Unknown Hawker Centre'
     location = _clean_text(doc.get('location')) or 'Unknown'
     sentiment = _clean_text(doc.get('sentiment')) or 'Neutral'
-    price_range = _clean_text(doc.get('price_range')) or '$'
     review = _clean_text(doc.get('review', doc.get('review_text'))) or 'No review text available.'
     author = _clean_text(doc.get('author')) or 'Anonymous'
-    created_at = _clean_text(doc.get('created_at')) or 'Recently'
 
     return {
         'dish': dish,
@@ -97,12 +91,8 @@ def _normalize_doc(doc: dict[str, Any]) -> dict[str, Any]:
         'location': location,
         'rating': _safe_float(doc.get('rating', doc.get('star_rating')), 0.0),
         'sentiment': sentiment,
-        'price_range': price_range,
         'review': review,
         'author': author,
-        'created_at': created_at,
-        'likes': _safe_int(doc.get('likes'), 0),
-        'comments': _safe_int(doc.get('comments'), 0),
     }
 
 
@@ -110,7 +100,6 @@ def search_opinions(
     query: str,
     locations: list[str],
     sentiments: list[str],
-    price_ranges: list[str],
     min_rating: int,
     page: int,
     page_size: int,
@@ -128,7 +117,7 @@ def search_opinions(
         'q': query or '*:*',
         'defType': 'edismax',
         'qf': 'dish stall stall_name hawker_centre review review_text',
-        'fl': 'dish,stall,stall_name,hawker_centre,location,rating,star_rating,sentiment,price_range,review,review_text,author,created_at,likes,comments',
+        'fl': 'dish,stall,stall_name,hawker_centre,location,rating,star_rating,sentiment,review,review_text,author',
         'start': max(0, (page - 1) * page_size),
         'rows': page_size,
         'facet': 'true',
@@ -154,7 +143,7 @@ def search_opinions(
         'wt': 'json',
     }
 
-    fq = _build_filter_queries(locations, sentiments, price_ranges, min_rating)
+    fq = _build_filter_queries(locations, sentiments, min_rating)
     if fq:
         params['fq'] = fq
 

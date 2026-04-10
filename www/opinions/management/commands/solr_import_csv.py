@@ -78,17 +78,6 @@ def to_int(value: str, default: int = 0) -> int:
         return default
 
 
-def infer_price_range(star_rating: float, word_count: int) -> str:
-    score = star_rating * 0.8 + min(word_count, 300) / 100
-    if score >= 6.8:
-        return '$$$$'
-    if score >= 5.3:
-        return '$$$'
-    if score >= 3.8:
-        return '$$'
-    return '$'
-
-
 def normalize_csv_row(row: dict[str, str]) -> dict[str, str]:
     """Normalize CSV keys to handle BOM/spacing issues in headers."""
     normalized: dict[str, str] = {}
@@ -131,11 +120,7 @@ def build_doc(row: dict[str, str], index: int) -> dict[str, Any]:
         'review': review_text,
         'rating': star_rating,
         'location': infer_region(hawker_centre),
-        'price_range': infer_price_range(star_rating, word_count),
         'author': f'Reviewer{(index % 5000) + 1}',
-        'created_at': f'{(index % 30) + 1} days ago',
-        'likes': min(50 + word_count * 3, 9999),
-        'comments': min(5 + word_count // 3, 999),
     }
 
 
@@ -150,7 +135,7 @@ def post_json(url: str, payload: Any, timeout: float = 30.0) -> Any:
 class Command(BaseCommand):
     help = 'Import hawker CSV opinions into Solr and ensure schema fields exist.'
 
-    DEFAULT_CSV = '../classification/full_dataset_with_predictions.csv'
+    DEFAULT_CSV = '../Q5 Sarcasm detection/final_dataset_with_sarcasm_merged.csv'
 
     def add_arguments(self, parser) -> None:
         parser.add_argument(
@@ -198,11 +183,7 @@ class Command(BaseCommand):
             {'name': 'review', 'type': 'text_general', 'stored': True, 'indexed': True},
             {'name': 'rating', 'type': 'pfloat', 'stored': True, 'indexed': True},
             {'name': 'location', 'type': 'string', 'stored': True, 'indexed': True},
-            {'name': 'price_range', 'type': 'string', 'stored': True, 'indexed': True},
             {'name': 'author', 'type': 'string', 'stored': True, 'indexed': True},
-            {'name': 'created_at', 'type': 'string', 'stored': True, 'indexed': False},
-            {'name': 'likes', 'type': 'pint', 'stored': True, 'indexed': True},
-            {'name': 'comments', 'type': 'pint', 'stored': True, 'indexed': True},
         ]
 
         for field in fields:

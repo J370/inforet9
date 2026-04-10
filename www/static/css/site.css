@@ -167,13 +167,6 @@ body {
     cursor: pointer;
 }
 
-.browse-label {
-    margin: 36px 0 14px;
-    font-size: 1.3rem;
-    color: #5b6d81;
-    font-weight: 700;
-}
-
 .chips {
     display: flex;
     justify-content: center;
@@ -189,54 +182,6 @@ body {
     border-radius: 999px;
     padding: 9px 18px;
     font-weight: 700;
-}
-
-.trending {
-    padding: 22px 0 8px;
-}
-
-.trending h2 {
-    text-align: center;
-    font-family: 'Nunito', sans-serif;
-    font-size: 2.5rem;
-    margin-bottom: 22px;
-}
-
-.trend-list {
-    width: min(760px, 100%);
-    margin: 0 auto;
-    display: grid;
-    gap: 12px;
-}
-
-.trend-item {
-    text-decoration: none;
-    color: inherit;
-    background: #fff;
-    border: 1px solid #e3e8ed;
-    border-radius: 14px;
-    padding: 16px 20px;
-}
-
-.trend-title {
-    font-size: 1.15rem;
-    font-weight: 700;
-}
-
-.trend-count {
-    color: #748399;
-    margin-top: 6px;
-    font-weight: 600;
-}
-
-.stats {
-    padding: 60px 0;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
 }
 
 .stat-card {
@@ -278,12 +223,6 @@ body {
     margin: 28px 0 6px;
     font-family: 'Nunito', sans-serif;
     font-size: 2.2rem;
-}
-
-.result-count {
-    margin: 0 0 18px;
-    color: #607286;
-    font-size: 1.2rem;
 }
 
 .spellcheck-box {
@@ -588,18 +527,6 @@ body {
     font-weight: 700;
 }
 
-.footer {
-    margin-top: 34px;
-    border-top: 1px solid var(--line);
-    background: #f0f3f6;
-    color: #6a7a8f;
-}
-
-.footer .container {
-    text-align: center;
-    padding: 20px 0;
-}
-
 @media (max-width: 980px) {
     .analytics-summary,
     .analytics-grid {
@@ -641,10 +568,6 @@ body {
     .search-wrap button {
         margin-right: 6px;
         padding: 10px 13px;
-    }
-
-    .stats-grid {
-        grid-template-columns: 1fr;
     }
 
     .card-header,

@@ -17,23 +17,13 @@
                 <span class="brand-mark">HO</span>
                 <span class="brand-text">HawkerOpinions</span>
             </a>
-            <nav class="nav-links">
-                <a href="{% url 'home' %}#about">About</a>
-                <a href="{% url 'home' %}#trending">Trending</a>
-            </nav>
         </div>
     </header>
 
     <main>
         {% block content %}{% endblock %}
     </main>
-
-    <footer class="footer">
-        <div class="container">
-            <p>© 2026 HawkerOpinions. Celebrating Singapore's hawker culture, one opinion at a time.</p>
-        </div>
-    </footer>
-
+    
     <script src="{% static 'js/site.js' %}"></script>
 </body>
 </html>

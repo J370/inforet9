@@ -19,36 +19,7 @@
                 <button class="quick-query" type="button" data-query="{{ prompt }}">{{ prompt }}</button>
             {% endfor %}
         </div>
-
-        <p class="browse-label">Browse by Dish Type</p>
-        <div class="chips">
-            {% for dish in dish_types %}
-                <a href="{% url 'search_results' %}?q={{ dish|urlencode }}" class="chip">{{ dish }}</a>
-            {% endfor %}
-        </div>
     </div>
 </section>
 
-<section class="container trending" id="trending">
-    <h2>Trending Discussions</h2>
-    <div class="trend-list">
-        {% for item, count in trending %}
-            <a class="trend-item" href="{% url 'search_results' %}?q={{ item|urlencode }}">
-                <div class="trend-title">{{ item }}</div>
-                <div class="trend-count">{{ count }}</div>
-            </a>
-        {% endfor %}
-    </div>
-</section>
-
-<section class="stats">
-    <div class="container stats-grid">
-        {% for value, label in stats %}
-            <div class="stat-card">
-                <p class="value">{{ value }}</p>
-                <p class="label">{{ label }}</p>
-            </div>
-        {% endfor %}
-    </div>
-</section>
 {% endblock %}
